@@ -5,7 +5,10 @@
 SentinelAI is a consumer managed cybersecurity platform with an **AI security assistant** as the differentiator.  
 Windows is the first production target.
 
-## Current state (v0.1.0 / Milestone 1)
+## Current state (v0.1.1 / Milestone 1)
+
+Verified on Windows: collectors perform real OS reads (registry, `sc`, `sysinfo`, filesystem, `netstat`).  
+See `docs/milestone-1-verification.md`.
 
 ```text
 ┌─────────────────────────────────────────┐
@@ -27,7 +30,8 @@ Windows is the first production target.
 └─────────────────┘  └────────────────────┘
 ```
 
-Analysis mode today: **Local analysis only**.
+Analysis mode today: **Local analysis only**.  
+**Protected** means no elevated local findings with complete core checks — not a malware-free claim.
 
 ## Target modular layout
 

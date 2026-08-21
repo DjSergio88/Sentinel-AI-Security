@@ -21,11 +21,33 @@ pub fn collect_startup() -> CollectorOutput {
 
 #[cfg(windows)]
 fn collect_startup_windows() -> CollectorOutput {
+    let mut out = CollectorOutput::new("startup_inventory");
+    let (items, warnings) = list_startup_items();
+    out.warnings.extend(warnings);
+
+    let scorer = RiskScorer::new();
+    for item in &items {
+        if let Some(finding) = evaluate_startup(item, &scorer) {
+            out.findings.push(finding);
+        }
+    }
+
+    if items.is_empty() {
+        out.warnings
+            .push("No startup entries discovered (or access was limited).".into());
+    }
+
+    out
+}
+
+/// List startup entries from Run keys and the user Startup folder (real registry/FS reads).
+#[cfg(windows)]
+pub fn list_startup_items() -> (Vec<StartupItem>, Vec<String>) {
     use winreg::enums::*;
     use winreg::RegKey;
 
-    let mut out = CollectorOutput::new("startup_inventory");
     let mut items = Vec::new();
+    let mut warnings = Vec::new();
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
@@ -62,22 +84,20 @@ fn collect_startup_windows() -> CollectorOutput {
         match root.open_subkey(subkey) {
             Ok(key) => {
                 for (name, value) in key.enum_values().filter_map(|v| v.ok()) {
-                    let command = value.to_string();
                     items.push(StartupItem {
                         name,
-                        command,
+                        command: value.to_string(),
                         location: label.to_string(),
                         enabled: true,
                     });
                 }
             }
             Err(err) => {
-                out.warnings.push(format!("Could not read {label}: {err}"));
+                warnings.push(format!("Could not read {label}: {err}"));
             }
         }
     }
 
-    // Startup folder (current user)
     if let Some(startup_dir) = user_startup_dir() {
         if let Ok(entries) = std::fs::read_dir(&startup_dir) {
             for entry in entries.flatten() {
@@ -97,20 +117,7 @@ fn collect_startup_windows() -> CollectorOutput {
         }
     }
 
-    let scorer = RiskScorer::new();
-    for item in &items {
-        if let Some(finding) = evaluate_startup(item, &scorer) {
-            out.findings.push(finding);
-        }
-    }
-
-    // Informational summary finding when empty is fine; we keep silent unless issues.
-    if items.is_empty() {
-        out.warnings
-            .push("No startup entries discovered (or access was limited).".into());
-    }
-
-    out
+    (items, warnings)
 }
 
 #[cfg(windows)]
@@ -197,11 +204,10 @@ fn evaluate_startup(item: &StartupItem, scorer: &RiskScorer) -> Option<Finding> 
 
 /// Heuristic: Roaming drop without a recognizable vendor folder depth.
 fn looks_like_random_drop(cmd_lower: &str) -> bool {
-    // e.g. ...\AppData\Roaming\odd.exe  (no vendor subfolder)
     if let Some(idx) = cmd_lower.find("\\appdata\\roaming\\") {
         let rest = &cmd_lower[idx + "\\appdata\\roaming\\".len()..];
         let slash_count = rest.matches('\\').count();
-        return slash_count == 0; // file directly under Roaming
+        return slash_count == 0;
     }
     false
 }
@@ -230,5 +236,23 @@ mod tests {
             enabled: true,
         };
         assert!(evaluate_startup(&item, &RiskScorer::new()).is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn list_startup_items_reads_real_registry() {
+        let (items, warnings) = list_startup_items();
+        let _ = warnings.len();
+        assert!(
+            !items.is_empty() || warnings.iter().any(|w| w.contains("Could not read")),
+            "expected startup inventory or permission warnings"
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn non_windows_startup_is_warning_only() {
+        let out = collect_startup();
+        assert!(out.warnings.iter().any(|w| w.contains("Windows")));
     }
 }

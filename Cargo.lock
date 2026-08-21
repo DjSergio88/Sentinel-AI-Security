@@ -546,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "sentinel-agent"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -561,7 +561,7 @@ dependencies = [
 
 [[package]]
 name = "sentinel-common"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "hex",
@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "sentinel-security-engine"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "sentinel-threat-analysis"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "sentinel-common",

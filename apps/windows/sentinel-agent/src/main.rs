@@ -155,6 +155,11 @@ fn print_human_summary(report: &sentinel_common::ScanReport) {
     );
     println!("  Security score: {}/100", score.value);
     println!("  {}", score.summary);
+    if matches!(score.status, sentinel_common::ProtectionStatus::Protected) {
+        println!(
+            "  Note: \"Protected\" means local posture checks found no elevated issues — not a malware-free guarantee."
+        );
+    }
     println!();
     println!("  Analysis: {}", report.analysis_mode.user_label());
     println!("  Duration: {} ms", report.duration_ms);

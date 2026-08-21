@@ -9,8 +9,10 @@ Repository: [DjSergio88/Sentinel-AI-Security](https://github.com/DjSergio88/Sent
 > Milestone 1 provides **local Windows security posture analysis only**.  
 > VPN, cloud AI, and external threat intelligence are **not** active until configured.
 
-Current version: **0.1.0**  
-Current milestone: **1 — Windows security engine**
+Current version: **0.1.1**  
+Current milestone: **1 — Windows security engine** (verified)
+
+> **Protected status meaning:** When the agent shows Protected, it means local posture checks found no elevated issues. It is **not** a malware-free guarantee and not a substitute for Windows Security full scans.
 
 ---
 
@@ -113,6 +115,7 @@ Tests use harmless fixtures only. **Never** use real malware samples.
 | [docs/security-model.md](docs/security-model.md) | Security & privacy model |
 | [docs/development.md](docs/development.md) | Local development |
 | [docs/audit-2026-08-21.md](docs/audit-2026-08-21.md) | Initial repository audit |
+| [docs/milestone-1-verification.md](docs/milestone-1-verification.md) | Milestone 1 capability verification |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes |
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow |

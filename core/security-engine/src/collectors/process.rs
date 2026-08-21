@@ -17,14 +17,30 @@ const SUSPICIOUS_TEMP_MARKERS: &[&str] = &[
 
 pub fn collect_processes(deep: bool) -> CollectorOutput {
     let mut out = CollectorOutput::new("process_inventory");
+    let processes = enumerate_processes();
+    let scorer = RiskScorer::new();
+
+    if processes.is_empty() {
+        out.warnings
+            .push("Process inventory returned zero processes; permissions may be limited.".into());
+        return out;
+    }
+
+    for info in &processes {
+        if let Some(finding) = evaluate_process(info, &scorer, deep) {
+            out.findings.push(finding);
+        }
+    }
+
+    out
+}
+
+/// Enumerate running processes (real sysinfo inventory — not simulated).
+pub fn enumerate_processes() -> Vec<ProcessInfo> {
     let mut system = System::new();
     system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-
-    let scorer = RiskScorer::new();
-    let mut reviewed = 0usize;
-
+    let mut out = Vec::new();
     for (pid, proc_) in system.processes() {
-        reviewed += 1;
         let name = proc_.name().to_string_lossy().to_string();
         let exe = proc_.exe().map(|p| p.to_string_lossy().to_string());
         let cmd = {
@@ -39,26 +55,15 @@ pub fn collect_processes(deep: bool) -> CollectorOutput {
                 Some(args.join(" "))
             }
         };
-
-        let info = ProcessInfo {
+        out.push(ProcessInfo {
             pid: pid.as_u32(),
-            name: name.clone(),
-            exe_path: exe.clone(),
-            cmd: cmd.clone(),
+            name,
+            exe_path: exe,
+            cmd,
             parent_pid: proc_.parent().map(|p| p.as_u32()),
             user: proc_.user_id().map(|u| u.to_string()),
-        };
-
-        if let Some(finding) = evaluate_process(&info, &scorer, deep) {
-            out.findings.push(finding);
-        }
+        });
     }
-
-    if reviewed == 0 {
-        out.warnings
-            .push("Process inventory returned zero processes; permissions may be limited.".into());
-    }
-
     out
 }
 
@@ -190,7 +195,7 @@ fn path_looks_suspicious_location(path: &str) -> bool {
         // Flag executables sitting directly under Roaming without a vendor folder depth heuristic:
         Some(ref parent)
             if parent.contains("\\appdata\\roaming")
-                && parent.matches('\\').count() <= 5
+                && parent.matches('\\').count() <= 4
                 && !parent.contains("\\microsoft\\")
                 && !parent.contains("\\sentinel") =>
         {
@@ -237,5 +242,18 @@ mod tests {
         };
         let finding = evaluate_process(&info, &RiskScorer::new(), false);
         assert!(finding.is_none());
+    }
+
+    #[test]
+    fn enumerate_processes_returns_real_inventory() {
+        let procs = enumerate_processes();
+        assert!(
+            !procs.is_empty(),
+            "expected real process inventory from sysinfo"
+        );
+        assert!(
+            procs.iter().any(|p| p.pid > 0),
+            "expected valid PIDs in inventory"
+        );
     }
 }

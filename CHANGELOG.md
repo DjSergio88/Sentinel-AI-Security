@@ -5,6 +5,27 @@ All notable changes to SentinelAI are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).  
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] — 2026-08-21
+
+### Changed
+
+- Honesty hardening: never claim **Protected** when Defender/Firewall signals are incomplete.
+- Defender/Firewall component status uses live registry/`sc` snapshot; unknown stays `null` (not default `true`).
+- “Enabled” Info finding only when all core OS protection signals are positively confirmed.
+- Protected summary text clarifies local posture ≠ full antivirus clearance.
+- Softened AppData\\Roaming process heuristic to reduce false positives for normal vendor apps.
+
+### Added
+
+- Integration tests in `core/security-engine/tests/milestone1_capabilities.rs`.
+- Unit coverage for process enumeration, startup registry reads, download SHA-256 hashing, JSON report serialization, incomplete-assessment scoring.
+- `docs/milestone-1-verification.md` capability matrix.
+
+### Security
+
+- Confirmed read-only Defender/Firewall checks (no disable/stop/reconfigure paths).
+- Agent notes state SentinelAI does not disable or reconfigure Windows security controls.
+
 ## [0.1.0] — 2026-08-21
 
 ### Added

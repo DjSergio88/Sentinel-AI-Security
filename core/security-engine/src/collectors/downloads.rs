@@ -5,7 +5,7 @@ use crate::hash::sha256_file;
 use crate::inventory::DownloadedFile;
 use sentinel_common::{Confidence, Finding, FindingCategory, Severity};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 const DEFAULT_MAX_FILES: usize = 40;
@@ -19,21 +19,34 @@ pub fn collect_downloads(hash_recent: bool) -> CollectorOutput {
             .push("Could not resolve the user Downloads folder.".into());
         return out;
     };
+    collect_downloads_from_dir(&dir, hash_recent, &mut out);
+    out
+}
+
+/// Inventory a specific directory (used by tests and the Downloads collector).
+pub fn inventory_directory(
+    dir: &Path,
+    hash_recent: bool,
+    max_files: usize,
+    recent_days: u64,
+) -> (Vec<DownloadedFile>, Vec<String>) {
+    let mut warnings = Vec::new();
+    let mut inventory = Vec::new();
 
     if !dir.is_dir() {
-        out.warnings.push(format!(
+        warnings.push(format!(
             "Downloads folder does not exist: {}",
             dir.display()
         ));
-        return out;
+        return (inventory, warnings);
     }
 
     let cutoff = SystemTime::now()
-        .checked_sub(Duration::from_secs(RECENT_DAYS * 24 * 3600))
+        .checked_sub(Duration::from_secs(recent_days * 24 * 3600))
         .unwrap_or(SystemTime::UNIX_EPOCH);
 
     let mut files: Vec<(PathBuf, SystemTime, u64)> = Vec::new();
-    match fs::read_dir(&dir) {
+    match fs::read_dir(dir) {
         Ok(entries) => {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -42,7 +55,13 @@ pub fn collect_downloads(hash_recent: bool) -> CollectorOutput {
                 }
                 let meta = match entry.metadata() {
                     Ok(m) => m,
-                    Err(_) => continue,
+                    Err(err) => {
+                        warnings.push(format!(
+                            "Could not read metadata for {}: {err}",
+                            path.display()
+                        ));
+                        continue;
+                    }
                 };
                 let modified = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
                 if modified < cutoff {
@@ -52,24 +71,20 @@ pub fn collect_downloads(hash_recent: bool) -> CollectorOutput {
             }
         }
         Err(err) => {
-            out.warnings
-                .push(format!("Could not read Downloads folder: {err}"));
-            return out;
+            warnings.push(format!("Could not read Downloads folder: {err}"));
+            return (inventory, warnings);
         }
     }
 
     files.sort_by_key(|a| std::cmp::Reverse(a.1));
-    files.truncate(DEFAULT_MAX_FILES);
+    files.truncate(max_files);
 
-    let mut inventory = Vec::new();
     for (path, modified, size) in files {
         let mut sha = None;
         if hash_recent && size <= DEFAULT_HASH_MAX_BYTES {
             match sha256_file(&path) {
                 Ok(h) => sha = Some(h),
-                Err(err) => out
-                    .warnings
-                    .push(format!("Hash failed for {}: {err}", path.display())),
+                Err(err) => warnings.push(format!("Hash failed for {}: {err}", path.display())),
             }
         }
 
@@ -77,33 +92,6 @@ pub fn collect_downloads(hash_recent: bool) -> CollectorOutput {
             .file_name()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
-
-        if looks_like_risky_download(&file_name) {
-            out.findings.push(
-                Finding::new(
-                    FindingCategory::File,
-                    Severity::Low,
-                    Confidence::Unknown,
-                    format!("Review recent download: {file_name}"),
-                    "A recently downloaded file may be an installer or script. Confirm you trust the source before opening it.",
-                )
-                .with_subject(path.to_string_lossy().to_string())
-                .with_reasons(vec![
-                    "+ Recently downloaded".into(),
-                    "+ File type commonly used for software installers or scripts".into(),
-                ])
-                .with_recommendation(
-                    "Open only if you requested this download from a trusted site.",
-                )
-                .with_risk_score(40)
-                .with_technical(format!(
-                    "path={} size={} sha256={}",
-                    path.display(),
-                    size,
-                    sha.as_deref().unwrap_or("(not hashed)")
-                )),
-            );
-        }
 
         inventory.push(DownloadedFile {
             path: path.to_string_lossy().to_string(),
@@ -117,9 +105,42 @@ pub fn collect_downloads(hash_recent: bool) -> CollectorOutput {
         });
     }
 
-    // Inventory is used for hashing/findings above; full dump reserved for future telemetry (opt-in).
-    let _ = inventory.len();
-    out
+    (inventory, warnings)
+}
+
+fn collect_downloads_from_dir(dir: &Path, hash_recent: bool, out: &mut CollectorOutput) {
+    let (inventory, warnings) =
+        inventory_directory(dir, hash_recent, DEFAULT_MAX_FILES, RECENT_DAYS);
+    out.warnings.extend(warnings);
+
+    for item in &inventory {
+        if looks_like_risky_download(&item.file_name) {
+            out.findings.push(
+                Finding::new(
+                    FindingCategory::File,
+                    Severity::Low,
+                    Confidence::Unknown,
+                    format!("Review recent download: {}", item.file_name),
+                    "A recently downloaded file may be an installer or script. Confirm you trust the source before opening it.",
+                )
+                .with_subject(item.path.clone())
+                .with_reasons(vec![
+                    "+ Recently downloaded".into(),
+                    "+ File type commonly used for software installers or scripts".into(),
+                ])
+                .with_recommendation(
+                    "Open only if you requested this download from a trusted site.",
+                )
+                .with_risk_score(40)
+                .with_technical(format!(
+                    "path={} size={} sha256={}",
+                    item.path,
+                    item.size_bytes,
+                    item.sha256.as_deref().unwrap_or("(not hashed)")
+                )),
+            );
+        }
+    }
 }
 
 fn downloads_dir() -> Option<PathBuf> {
@@ -154,11 +175,41 @@ fn looks_like_risky_download(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hash::sha256_bytes;
+    use std::io::Write;
 
     #[test]
     fn installer_extension_detected() {
         assert!(looks_like_risky_download("Setup.EXE"));
         assert!(looks_like_risky_download("payload.ps1"));
         assert!(!looks_like_risky_download("photo.jpg"));
+    }
+
+    #[test]
+    fn inventory_hashes_recent_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file_path = dir.path().join("setup.exe");
+        let payload = b"sentinel-test-download";
+        {
+            let mut f = fs::File::create(&file_path).expect("create");
+            f.write_all(payload).expect("write");
+        }
+
+        let (inventory, warnings) = inventory_directory(dir.path(), true, 10, 14);
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(inventory.len(), 1);
+        assert_eq!(inventory[0].file_name, "setup.exe");
+        assert_eq!(
+            inventory[0].sha256.as_deref(),
+            Some(sha256_bytes(payload).as_str())
+        );
+    }
+
+    #[test]
+    fn missing_directory_produces_warning_not_panic() {
+        let missing = PathBuf::from("C:\\sentinel-ai-does-not-exist-downloads");
+        let (inventory, warnings) = inventory_directory(&missing, true, 10, 14);
+        assert!(inventory.is_empty());
+        assert!(!warnings.is_empty());
     }
 }

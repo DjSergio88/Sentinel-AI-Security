@@ -11,6 +11,8 @@ pub mod version;
 
 pub use confidence::Confidence;
 pub use findings::{Finding, FindingCategory, Severity};
-pub use posture::{ProtectionStatus, SecurityPosture, SecurityScore};
+pub use posture::{
+    AnalysisMode, ComponentStatus, ProtectionStatus, ScoreContext, SecurityPosture, SecurityScore,
+};
 pub use scan::{ScanKind, ScanReport, ScanStatus};
 pub use version::SENTINEL_VERSION;

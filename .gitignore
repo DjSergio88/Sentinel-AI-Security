@@ -53,6 +53,7 @@ out/
 data/
 local/
 .sentinel/
+reports/
 coverage/
 lcov.info
 
