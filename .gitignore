@@ -1,0 +1,73 @@
+# Rust
+/target/
+**/target/
+# Commit Cargo.lock for reproducible application builds.
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+id_rsa*
+wg-private*
+wireguard*.conf
+secrets/
+credentials.json
+**/service-account*.json
+
+# Build artifacts
+dist/
+out/
+*.exe
+*.msi
+*.msix
+*.dll
+*.pdb
+*.obj
+*.lib
+*.apk
+*.aab
+*.dmg
+*.app
+*.deb
+*.rpm
+*.AppImage
+
+# Local data / logs
+*.log
+data/
+local/
+.sentinel/
+coverage/
+lcov.info
+
+# Node (future dashboards)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Test / temp
+tmp/
+temp/
+*.tmp

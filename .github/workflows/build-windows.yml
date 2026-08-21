@@ -1,0 +1,42 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build SentinelAgent (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release agent
+        run: cargo build -p sentinel-agent --release
+
+      - name: Smoke test
+        run: |
+          .\target\release\SentinelAgent.exe info
+          .\target\release\SentinelAgent.exe scan --kind quick --json | Out-File -Encoding utf8 scan-smoke.json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SentinelAgent-windows-x64
+          path: |
+            target/release/SentinelAgent.exe
+            scan-smoke.json
+          if-no-files-found: error

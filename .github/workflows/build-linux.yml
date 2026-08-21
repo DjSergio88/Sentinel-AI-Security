@@ -1,0 +1,13 @@
+name: Build Linux (placeholder)
+
+# Milestone 13 target. Workflow kept so the CI layout matches the product plan.
+# Jobs are skipped until a Linux agent package exists.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Linux builds are not implemented yet (Milestone 13)."

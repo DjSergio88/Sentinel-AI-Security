@@ -1,0 +1,23 @@
+[package]
+name = "sentinel-agent"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SentinelAI Windows security agent (SentinelAgent)"
+publish = false
+
+[[bin]]
+name = "SentinelAgent"
+path = "src/main.rs"
+
+[dependencies]
+sentinel-common = { workspace = true }
+sentinel-security-engine = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
